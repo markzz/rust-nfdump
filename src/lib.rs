@@ -90,6 +90,8 @@ pub struct NfFileRecordV1 {
     pub flow_end_reason: u8,
     pub ip4_addr: Option<IPv4Block>,
     pub ip6_addr: Option<IPv6Block>,
+    pub packets: u64,
+    pub bytes: u64,
 }
 
 #[derive(Debug)]
@@ -204,6 +206,20 @@ impl<R: Read> NfFileReaderV1<R> {
                                     src_addr: cursor.read_u128::<LittleEndian>()?,
                                     dst_addr: cursor.read_u128::<LittleEndian>()?,
                                 })
+                            }
+                        },
+                        packets: {
+                            if flags & 0x02 == 0 {
+                                cursor.read_u32::<LittleEndian>()? as u64
+                            } else {
+                                cursor.read_u64::<LittleEndian>()?
+                            }
+                        },
+                        bytes: {
+                            if flags & 0x04 == 0 {
+                                cursor.read_u32::<LittleEndian>()? as u64
+                            } else {
+                                cursor.read_u64::<LittleEndian>()?
                             }
                         }
                     })))
