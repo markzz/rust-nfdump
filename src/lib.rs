@@ -91,10 +91,10 @@ pub struct NfFileRecordV1 {
     pub ip6_addr: Option<IPv6Addrs>,
     pub packets: u64,
     pub bytes: u64,
-    pub input: u32,
-    pub output: u32,
-    pub src_as: u32,
-    pub dst_as: u32,
+    pub input: Option<u32>,
+    pub output: Option<u32>,
+    pub src_as: Option<u32>,
+    pub dst_as: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -256,38 +256,38 @@ impl<R: Read> NfFileReaderV1<R> {
                         },
                         input: {
                             if self.extensions.contains(&4u16) {
-                                cursor.read_u16::<LittleEndian>()? as u32
+                                Option::from(cursor.read_u16::<LittleEndian>()? as u32)
                             } else if self.extensions.contains(&5u16) {
-                                cursor.read_u32::<LittleEndian>()?
+                                Option::from(cursor.read_u32::<LittleEndian>()?)
                             } else {
-                                0u32
+                                None
                             }
                         },
                         output: {
                             if self.extensions.contains(&4u16) {
-                                cursor.read_u16::<LittleEndian>()? as u32
+                                Option::from(cursor.read_u16::<LittleEndian>()? as u32)
                             } else if self.extensions.contains(&5u16) {
-                                cursor.read_u32::<LittleEndian>()?
+                                Option::from(cursor.read_u32::<LittleEndian>()?)
                             } else {
-                                0u32
+                                None
                             }
                         },
                         src_as: {
                             if self.extensions.contains(&6u16) {
-                                cursor.read_u16::<LittleEndian>()? as u32
+                                Option::from(cursor.read_u16::<LittleEndian>()? as u32)
                             } else if self.extensions.contains(&7u16) {
-                                cursor.read_u32::<LittleEndian>()?
+                                Option::from(cursor.read_u32::<LittleEndian>()?)
                             } else {
-                                0u32
+                                None
                             }
                         },
                         dst_as: {
                             if self.extensions.contains(&6u16) {
-                                cursor.read_u16::<LittleEndian>()? as u32
+                                Option::from(cursor.read_u16::<LittleEndian>()? as u32)
                             } else if self.extensions.contains(&7u16) {
-                                cursor.read_u32::<LittleEndian>()?
+                                Option::from(cursor.read_u32::<LittleEndian>()?)
                             } else {
-                                0u32
+                                None
                             }
                         },
                         // TODO: Implement extensions
