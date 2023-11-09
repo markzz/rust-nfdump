@@ -4,7 +4,6 @@ mod nfx;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Error, Read, Seek};
-use std::io::ErrorKind::UnexpectedEof;
 use crate::exporter::{ExporterInfoRecordV1, ExporterStatsRecord, read_exporter_record, read_exporter_stats_record, read_samplerv0_record, SamplerV0Record};
 use crate::nfx::{ExtensionMap, read_extension_map};
 
@@ -56,7 +55,7 @@ struct DataBlockHeaderV1 {
     record_num: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct NfFileRecordHeaderV1 {
     pub rtype: u16,
     pub size: u16,
@@ -110,6 +109,8 @@ pub struct NfFileReaderV1<R> {
     pub header: NfFileHeaderV1,
     pub stat_record: StatRecordV1,
     data_block: DataBlockHeaderV1,
+    extensions: Vec<u16>,
+    exporters: Vec<ExporterInfoRecordV1>,
 }
 
 impl<R: Read> NfFileReaderV1<R> {
@@ -123,7 +124,15 @@ impl<R: Read> NfFileReaderV1<R> {
             flags: 0,
             record_num: 0,
         };
-        NfFileReaderV1 { reader, header, stat_record, data_block }
+
+        NfFileReaderV1 {
+            reader,
+            header,
+            stat_record,
+            data_block,
+            extensions: Vec::new(),
+            exporters: Vec::new()
+        }
     }
 
     pub fn read_record(&mut self) -> Result<Option<NfFileRecord>, Error> {
@@ -160,11 +169,30 @@ impl<R: Read> NfFileReaderV1<R> {
         match result {
             Ok(_) => {
                 if header.rtype == 9 {
-                    Ok(read_samplerv0_record(header,record_data))
+                    Ok(read_samplerv0_record(header, record_data))
                 } else if header.rtype == 7 {
-                    Ok(read_exporter_record(header, record_data))
+                    // See block below for similar sentiment.
+                    let exporter = read_exporter_record(header, record_data).unwrap();
+                    match &exporter {
+                        NfFileRecord::ExporterInfoRecordV1(ex) => {
+                            self.exporters.push(ex.clone());
+                        }
+                        _ => {}
+                    }
+                    Ok(Option::from(exporter))
                 } else if header.rtype == 2 {
-                    Ok(read_extension_map(header, record_data))
+                    // This does not "look right" to me. If someone who sees this knows the idiomatic
+                    // way to handle what this is doing, I'd love to see it. For now, it works and
+                    // it'll continue to exist here.
+                    // TODO: This assumes there will only ever be one extension map per file.
+                    let extension_map = read_extension_map(header, record_data).unwrap();
+                    match &extension_map {
+                        NfFileRecord::ExtensionMap(em) => {
+                            self.extensions = em.ex_id.clone();
+                        }
+                        _ => {}
+                    }
+                    Ok(Option::from(extension_map))
                 } else if header.rtype == 8 {
                     Ok(read_exporter_stats_record(header, record_data))
                 } else {
@@ -222,6 +250,7 @@ impl<R: Read> NfFileReaderV1<R> {
                                 cursor.read_u64::<LittleEndian>()?
                             }
                         }
+                        // TODO: Implement extensions (especially 4 and 6)
                     })))
                 }
             }

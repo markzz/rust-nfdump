@@ -4,7 +4,7 @@ use crate::{NfFileRecord, NfFileRecordHeaderV1};
 
 const AF_INET: u16 = 2;
 const AF_INET6: u16 = 10;
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct ExporterInfoRecordV1 {
     pub header: NfFileRecordHeaderV1,
     pub version: u32,
