@@ -1,4 +1,3 @@
-use std::error::Error;
 use byteorder::{LittleEndian, ReadBytesExt};
 use crate::{NfFileRecord, NfFileRecordHeaderV1};
 

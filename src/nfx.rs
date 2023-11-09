@@ -1,4 +1,3 @@
-use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 use crate::{NfFileRecord, NfFileRecordHeaderV1};
 
