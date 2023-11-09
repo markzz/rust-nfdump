@@ -87,20 +87,24 @@ pub struct NfFileRecordV1 {
     pub exporter_sysid: u16,
     pub bi_flow_dir: u8,
     pub flow_end_reason: u8,
-    pub ip4_addr: Option<IPv4Block>,
-    pub ip6_addr: Option<IPv6Block>,
+    pub ip4_addr: Option<IPv4Addrs>,
+    pub ip6_addr: Option<IPv6Addrs>,
     pub packets: u64,
     pub bytes: u64,
+    pub input: u32,
+    pub output: u32,
+    pub src_as: u32,
+    pub dst_as: u32,
 }
 
 #[derive(Debug)]
-pub struct IPv4Block {
+pub struct IPv4Addrs {
     pub src_addr: u32,
     pub dst_addr: u32,
 }
 
 #[derive(Debug)]
-pub struct IPv6Block {
+pub struct IPv6Addrs {
     pub src_addr: u128,
     pub dst_addr: u128,
 }
@@ -220,7 +224,7 @@ impl<R: Read> NfFileReaderV1<R> {
                             if flags & 0x01 != 0 {
                                 None
                             } else {
-                                Some(IPv4Block {
+                                Some(IPv4Addrs {
                                     src_addr: cursor.read_u32::<LittleEndian>()?,
                                     dst_addr: cursor.read_u32::<LittleEndian>()?,
                                 })
@@ -230,7 +234,7 @@ impl<R: Read> NfFileReaderV1<R> {
                             if flags & 0x01 == 0 {
                                 None
                             } else {
-                                Some(IPv6Block {
+                                Some(IPv6Addrs {
                                     src_addr: cursor.read_u128::<LittleEndian>()?,
                                     dst_addr: cursor.read_u128::<LittleEndian>()?,
                                 })
@@ -249,8 +253,44 @@ impl<R: Read> NfFileReaderV1<R> {
                             } else {
                                 cursor.read_u64::<LittleEndian>()?
                             }
-                        }
-                        // TODO: Implement extensions (especially 4 and 6)
+                        },
+                        input: {
+                            if self.extensions.contains(&4u16) {
+                                cursor.read_u16::<LittleEndian>()? as u32
+                            } else if self.extensions.contains(&5u16) {
+                                cursor.read_u32::<LittleEndian>()?
+                            } else {
+                                0u32
+                            }
+                        },
+                        output: {
+                            if self.extensions.contains(&4u16) {
+                                cursor.read_u16::<LittleEndian>()? as u32
+                            } else if self.extensions.contains(&5u16) {
+                                cursor.read_u32::<LittleEndian>()?
+                            } else {
+                                0u32
+                            }
+                        },
+                        src_as: {
+                            if self.extensions.contains(&6u16) {
+                                cursor.read_u16::<LittleEndian>()? as u32
+                            } else if self.extensions.contains(&7u16) {
+                                cursor.read_u32::<LittleEndian>()?
+                            } else {
+                                0u32
+                            }
+                        },
+                        dst_as: {
+                            if self.extensions.contains(&6u16) {
+                                cursor.read_u16::<LittleEndian>()? as u32
+                            } else if self.extensions.contains(&7u16) {
+                                cursor.read_u32::<LittleEndian>()?
+                            } else {
+                                0u32
+                            }
+                        },
+                        // TODO: Implement extensions
                     })))
                 }
             }
