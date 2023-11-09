@@ -4,7 +4,8 @@ mod nfx;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Error, Read, Seek};
-use crate::exporter::{ExporterInfoRecordV1, read_exporter_record, read_samplerv0_record, SamplerV0Record};
+use std::io::ErrorKind::UnexpectedEof;
+use crate::exporter::{ExporterInfoRecordV1, ExporterStatsRecord, read_exporter_record, read_exporter_stats_record, read_samplerv0_record, SamplerV0Record};
 use crate::nfx::{ExtensionMap, read_extension_map};
 
 const NFFILE_V1_HEADER_SIZE: usize = 140;
@@ -66,6 +67,7 @@ pub enum NfFileRecord {
     ExporterInfoRecordV1(ExporterInfoRecordV1),
     ExtensionMap(ExtensionMap),
     SamplerV0Record(SamplerV0Record),
+    ExporterStatsRecord(ExporterStatsRecord),
 }
 
 #[derive(Debug)]
@@ -124,8 +126,11 @@ impl<R: Read> NfFileReaderV1<R> {
 
     pub fn read_record(&mut self) -> Result<Option<NfFileRecord>, Error> {
         if self.data_block.record_num == 0 || self.data_block.record_num == self.data_block.num_records {
-            self.data_block.record_num = 0;
-            self.data_block = self.read_data_block_header().unwrap().unwrap();
+            let db = self.read_data_block_header().unwrap();
+            match db {
+                None => return Ok(None),
+                _ => self.data_block = db.unwrap(),
+            };
         }
 
         self.data_block.record_num += 1;
@@ -158,6 +163,8 @@ impl<R: Read> NfFileReaderV1<R> {
                     Ok(read_exporter_record(header, record_data))
                 } else if header.rtype == 2 {
                     Ok(read_extension_map(header, record_data))
+                } else if header.rtype == 8 {
+                    Ok(read_exporter_stats_record(header, record_data))
                 } else {
                     let mut cursor = std::io::Cursor::new(&record_data);
                     let flags = cursor.read_u16::<LittleEndian>()?;

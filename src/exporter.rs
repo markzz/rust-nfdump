@@ -24,6 +24,21 @@ pub struct SamplerV0Record {
     pub exporter_sysid: u16,
 }
 
+#[derive(Debug)]
+pub struct ExporterStatsRecord {
+    pub header: NfFileRecordHeaderV1,
+    pub stat_count: u32,
+    pub stat: Vec<ExporterStat>,
+}
+
+#[derive(Debug)]
+pub struct ExporterStat {
+    pub sysid: u32,
+    pub sequence_failure: u32,
+    pub packets: u64,
+    pub flows: u64,
+}
+
 pub fn read_exporter_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) -> Option<NfFileRecord> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
@@ -69,5 +84,28 @@ pub fn read_samplerv0_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>)
         interval: cursor.read_u32::<LittleEndian>().unwrap(),
         algorithm: cursor.read_u16::<LittleEndian>().unwrap(),
         exporter_sysid: cursor.read_u16::<LittleEndian>().unwrap(),
+    }))
+}
+
+pub fn read_exporter_stats_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) -> Option<NfFileRecord> {
+    let mut cursor = std::io::Cursor::new(&record_data);
+
+    let stat_count = cursor.read_u32::<LittleEndian>().unwrap();
+    let mut stat: Vec<ExporterStat> = Vec::new();
+    let mut cnt = 0;
+    while cnt < stat_count {
+        stat.push(ExporterStat {
+            sysid: cursor.read_u32::<LittleEndian>().unwrap(),
+            sequence_failure: cursor.read_u32::<LittleEndian>().unwrap(),
+            packets: cursor.read_u64::<LittleEndian>().unwrap(),
+            flows: cursor.read_u64::<LittleEndian>().unwrap(),
+        });
+        cnt += 1;
+    };
+
+    Some(NfFileRecord::ExporterStatsRecord( ExporterStatsRecord {
+        header,
+        stat_count,
+        stat,
     }))
 }
