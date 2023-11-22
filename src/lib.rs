@@ -10,8 +10,8 @@ use crate::exporter::{
 use crate::nfx::read_extension_map;
 use crate::record::{new_record, Record};
 use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::Error;
 use std::io::Read;
+use crate::error::NfdumpErrorKind::EOF;
 
 const NFFILE_HEADER_SIZE: usize = 140;
 const NFFILE_STAT_RECORD_SIZE: usize = 136;
@@ -59,6 +59,7 @@ struct DataBlockHeader {
     id: u16,
     flags: u16,
     record_num: u32,
+    block_num: u32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -87,6 +88,7 @@ impl<R: Read> NfFileReader<R> {
             id: 0,
             flags: 0,
             record_num: 0,
+            block_num: 0,
         };
 
         NfFileReader {
@@ -103,7 +105,10 @@ impl<R: Read> NfFileReader<R> {
         if self.data_block.record_num == 0
             || self.data_block.record_num == self.data_block.num_records
         {
-            self.data_block = self.read_data_block_header().unwrap();
+            self.data_block = match self.read_data_block_header() {
+                Ok(db) => db,
+                Err(e) => return Err(e),
+            };
         }
 
         self.data_block.record_num += 1;
@@ -149,9 +154,13 @@ impl<R: Read> NfFileReader<R> {
         }
     }
 
-    fn read_data_block_header(&mut self) -> Result<DataBlockHeader, Error> {
+    fn read_data_block_header(&mut self) -> Result<DataBlockHeader, NfdumpError> {
         let mut block_data = [0; NFFILE_DATA_HEADER_SIZE];
         let result = self.reader.read_exact(&mut block_data);
+
+        if self.data_block.block_num == self.header.num_blocks {
+            return Err(NfdumpError::new(EOF));
+        }
 
         match result {
             Ok(_) => {
@@ -163,9 +172,10 @@ impl<R: Read> NfFileReader<R> {
                     id: cursor.read_u16::<LittleEndian>()?,
                     flags: cursor.read_u16::<LittleEndian>()?,
                     record_num: 0,
+                    block_num: self.data_block.block_num + 1,
                 })
             },
-            Err(e) => Err(e),
+            Err(e) => Err(NfdumpError::from(e)),
         }
     }
 
