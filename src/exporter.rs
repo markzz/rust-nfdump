@@ -1,11 +1,11 @@
+use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
-use crate::{NfFileRecord, NfFileRecordHeaderV1};
 
 const AF_INET: u16 = 2;
 const AF_INET6: u16 = 10;
 #[derive(Debug, Copy, Clone)]
-pub struct ExporterInfoRecordV1 {
-    pub header: NfFileRecordHeaderV1,
+pub struct ExporterInfo {
+    pub header: NfFileRecordHeader,
     pub version: u32,
     pub v4_addr: Option<u32>,
     pub v6_addr: Option<u128>,
@@ -16,7 +16,7 @@ pub struct ExporterInfoRecordV1 {
 
 #[derive(Debug)]
 pub struct SamplerV0Record {
-    pub header: NfFileRecordHeaderV1,
+    pub header: NfFileRecordHeader,
     pub id: i32,
     pub interval: u32,
     pub algorithm: u16,
@@ -25,7 +25,7 @@ pub struct SamplerV0Record {
 
 #[derive(Debug)]
 pub struct ExporterStatsRecord {
-    pub header: NfFileRecordHeaderV1,
+    pub header: NfFileRecordHeader,
     pub stat_count: u32,
     pub stat: Vec<ExporterStat>,
 }
@@ -38,7 +38,10 @@ pub struct ExporterStat {
     pub flows: u64,
 }
 
-pub fn read_exporter_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) -> Option<NfFileRecord> {
+pub fn read_exporter_record(
+    header: NfFileRecordHeader,
+    record_data: Vec<u8>,
+) -> Option<ExporterInfo> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
     let version = cursor.read_u32::<LittleEndian>();
@@ -50,8 +53,7 @@ pub fn read_exporter_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) 
     let sa = sa_family.unwrap();
     let addr = addr_res.unwrap();
 
-
-    Some(NfFileRecord::ExporterInfoRecordV1( ExporterInfoRecordV1 {
+    Some(ExporterInfo {
         header,
         version: version.unwrap(),
         v4_addr: {
@@ -71,22 +73,28 @@ pub fn read_exporter_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) 
         sa_family: sa,
         sysid: sysid.unwrap(),
         id: id.unwrap(),
-    }))
+    })
 }
 
-pub fn read_samplerv0_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) -> Option<NfFileRecord> {
+pub fn read_samplerv0_record(
+    header: NfFileRecordHeader,
+    record_data: Vec<u8>,
+) -> Option<SamplerV0Record> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
-    Some(NfFileRecord::SamplerV0Record(SamplerV0Record {
+    Some(SamplerV0Record {
         header,
         id: cursor.read_i32::<LittleEndian>().unwrap(),
         interval: cursor.read_u32::<LittleEndian>().unwrap(),
         algorithm: cursor.read_u16::<LittleEndian>().unwrap(),
         exporter_sysid: cursor.read_u16::<LittleEndian>().unwrap(),
-    }))
+    })
 }
 
-pub fn read_exporter_stats_record(header: NfFileRecordHeaderV1, record_data: Vec<u8>) -> Option<NfFileRecord> {
+pub fn read_exporter_stats_record(
+    header: NfFileRecordHeader,
+    record_data: Vec<u8>,
+) -> Option<ExporterStatsRecord> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
     let stat_count = cursor.read_u32::<LittleEndian>().unwrap();
@@ -100,11 +108,11 @@ pub fn read_exporter_stats_record(header: NfFileRecordHeaderV1, record_data: Vec
             flows: cursor.read_u64::<LittleEndian>().unwrap(),
         });
         cnt += 1;
-    };
+    }
 
-    Some(NfFileRecord::ExporterStatsRecord( ExporterStatsRecord {
+    Some(ExporterStatsRecord {
         header,
         stat_count,
         stat,
-    }))
+    })
 }
