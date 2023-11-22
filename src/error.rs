@@ -7,7 +7,7 @@ pub struct NfdumpError {
     pub(crate) io_error: Option<std::io::Error>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum NfdumpErrorKind {
     EOF,
     IoError,
