@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub struct NfdumpError {
-    pub(crate) kind: NfdumpErrorKind,
+    pub kind: NfdumpErrorKind,
     pub(crate) io_error: Option<std::io::Error>,
 }
 
