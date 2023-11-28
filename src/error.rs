@@ -14,6 +14,7 @@ pub enum NfdumpErrorKind {
     InvalidFile,
     UnexpectedSAInExporter,
     ParseError,
+    UnsupportedVersion,
 }
 
 impl Display for NfdumpError {
@@ -34,6 +35,9 @@ impl Display for NfdumpError {
             },
             NfdumpErrorKind::InvalidFile => {
                 write!(f, "{}", "")
+            }
+            NfdumpErrorKind::UnsupportedVersion => {
+                write!(f, "{}", "nfdump file version not supported (yet)")
             }
         }
     }

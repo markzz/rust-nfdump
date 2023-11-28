@@ -79,10 +79,9 @@ pub struct NfFileReader<R> {
 }
 
 impl<R: Read> NfFileReader<R> {
-    pub fn new(mut reader: R) -> NfFileReader<R> {
-        let header = NfFileReader::read_header(&mut reader).unwrap();
-        let stat_record = NfFileReader::read_stat_record(&mut reader)
-            .unwrap();
+    pub fn new(mut reader: R) -> Result<NfFileReader<R>, NfdumpError> {
+        let header = NfFileReader::read_header(&mut reader)?;
+        let stat_record = NfFileReader::read_stat_record(&mut reader)?;
         let data_block = DataBlockHeader {
             num_records: 0,
             size: 0,
@@ -92,14 +91,14 @@ impl<R: Read> NfFileReader<R> {
             block_num: 0,
         };
 
-        NfFileReader {
+        Ok(NfFileReader {
             reader,
             header,
             stat_record,
             data_block,
             extensions: Vec::new(),
             exporters: Vec::new(),
-        }
+        })
     }
 
     pub fn read_record(&mut self) -> Result<Record, NfdumpError> {
@@ -184,11 +183,11 @@ impl<R: Read> NfFileReader<R> {
         let mut header_data = [0; NFFILE_HEADER_SIZE];
         let result = reader.read_exact(&mut header_data);
 
-        match result {
+        let header = match result {
             Ok(_) => {
                 let mut cursor = std::io::Cursor::new(&header_data);
 
-                Ok(NfFileHeader {
+                NfFileHeader {
                     magic: cursor.read_u16::<LittleEndian>()?,
                     version: cursor.read_u16::<LittleEndian>()?,
                     flags: cursor.read_u32::<LittleEndian>()?,
@@ -198,10 +197,20 @@ impl<R: Read> NfFileReader<R> {
                         _ = cursor.read_exact(&mut arr);
                         arr
                     },
-                })
+                }
             },
-            Err(e) => Err(NfdumpError::from(e)),
+            Err(e) => return Err(NfdumpError::from(e)),
+        };
+
+        if header.magic != 0xa50c {
+            return Err(NfdumpError::new(error::NfdumpErrorKind::InvalidFile));
         }
+
+        if header.version != 0x0001 {
+            return Err(NfdumpError::new(error::NfdumpErrorKind::UnsupportedVersion))
+        }
+
+        Ok(header)
     }
 
     fn read_stat_record(mut reader: R) -> Result<StatRecord, NfdumpError> {
