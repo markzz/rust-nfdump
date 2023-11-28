@@ -53,6 +53,7 @@ pub struct StatRecord {
     pub sequence_failure: u32,
 }
 
+#[allow(dead_code)]
 struct DataBlockHeader {
     num_records: u32,
     size: u32,
