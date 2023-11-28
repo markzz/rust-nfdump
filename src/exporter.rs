@@ -1,5 +1,8 @@
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
+use crate::error::NfdumpError;
+use crate::error::NfdumpErrorKind::UnexpectedSAInExporter;
 
 const AF_INET: u16 = 2;
 const AF_INET6: u16 = 10;
@@ -7,8 +10,7 @@ const AF_INET6: u16 = 10;
 pub struct ExporterInfo {
     pub header: NfFileRecordHeader,
     pub version: u32,
-    pub v4_addr: Option<u32>,
-    pub v6_addr: Option<u128>,
+    pub address: IpAddr,
     pub sa_family: u16,
     pub sysid: u16,
     pub id: u16,
@@ -41,76 +43,68 @@ pub struct ExporterStat {
 pub fn read_exporter_record(
     header: NfFileRecordHeader,
     record_data: Vec<u8>,
-) -> Option<ExporterInfo> {
+) -> Result<ExporterInfo, NfdumpError> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
-    let version = cursor.read_u32::<LittleEndian>();
-    let addr_res = cursor.read_u128::<LittleEndian>();
-    let sa_family = cursor.read_u16::<LittleEndian>();
-    let sysid = cursor.read_u16::<LittleEndian>();
-    let id = cursor.read_u16::<LittleEndian>();
+    let version = cursor.read_u32::<LittleEndian>()?;
+    let addr = cursor.read_u128::<LittleEndian>()?;
+    let sa_family = cursor.read_u16::<LittleEndian>()?;
+    let sysid = cursor.read_u16::<LittleEndian>()?;
+    let id = cursor.read_u16::<LittleEndian>()?;
 
-    let sa = sa_family.unwrap();
-    let addr = addr_res.unwrap();
-
-    Some(ExporterInfo {
+    Ok(ExporterInfo {
         header,
-        version: version.unwrap(),
-        v4_addr: {
-            if sa == AF_INET6 {
-                None
+        version,
+        address: {
+            if sa_family == AF_INET {
+                IpAddr::from(Ipv4Addr::from((addr >> 64) as u32))
+            } else if sa_family == AF_INET6 {
+                IpAddr::from(Ipv6Addr::from(addr))
             } else {
-                Some((addr >> 64) as u32)
+                return Err(NfdumpError::new(UnexpectedSAInExporter));
             }
         },
-        v6_addr: {
-            if sa == AF_INET {
-                None
-            } else {
-                Some(addr)
-            }
-        },
-        sa_family: sa,
-        sysid: sysid.unwrap(),
-        id: id.unwrap(),
+        sa_family,
+        sysid,
+        id,
     })
 }
 
 pub fn read_samplerv0_record(
     header: NfFileRecordHeader,
     record_data: Vec<u8>,
-) -> Option<SamplerV0Record> {
+) -> Result<SamplerV0Record, NfdumpError> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
-    Some(SamplerV0Record {
+    Ok(SamplerV0Record {
         header,
-        id: cursor.read_i32::<LittleEndian>().unwrap(),
-        interval: cursor.read_u32::<LittleEndian>().unwrap(),
-        algorithm: cursor.read_u16::<LittleEndian>().unwrap(),
-        exporter_sysid: cursor.read_u16::<LittleEndian>().unwrap(),
+        id: cursor.read_i32::<LittleEndian>()?,
+        interval: cursor.read_u32::<LittleEndian>()?,
+        algorithm: cursor.read_u16::<LittleEndian>()?,
+        exporter_sysid: cursor.read_u16::<LittleEndian>()?,
     })
 }
 
 pub fn read_exporter_stats_record(
     header: NfFileRecordHeader,
     record_data: Vec<u8>,
-) -> Option<ExporterStatsRecord> {
+) -> Result<ExporterStatsRecord, NfdumpError> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
-    let stat_count = cursor.read_u32::<LittleEndian>().unwrap();
+    let stat_count = cursor.read_u32::<LittleEndian>()?;
     let mut stat: Vec<ExporterStat> = Vec::new();
     let mut cnt = 0;
     while cnt < stat_count {
         stat.push(ExporterStat {
-            sysid: cursor.read_u32::<LittleEndian>().unwrap(),
-            sequence_failure: cursor.read_u32::<LittleEndian>().unwrap(),
-            packets: cursor.read_u64::<LittleEndian>().unwrap(),
-            flows: cursor.read_u64::<LittleEndian>().unwrap(),
+            sysid: cursor.read_u32::<LittleEndian>()?,
+            sequence_failure: cursor.read_u32::<LittleEndian>()?,
+            packets: cursor.read_u64::<LittleEndian>()?,
+            flows: cursor.read_u64::<LittleEndian>()?,
         });
         cnt += 1;
     }
 
-    Some(ExporterStatsRecord {
+    Ok(ExporterStatsRecord {
         header,
         stat_count,
         stat,

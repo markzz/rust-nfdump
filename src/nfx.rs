@@ -1,5 +1,6 @@
 use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
+use crate::error::NfdumpError;
 
 #[derive(Debug)]
 pub struct ExtensionMap {
@@ -12,22 +13,22 @@ pub struct ExtensionMap {
 pub fn read_extension_map(
     header: NfFileRecordHeader,
     record_data: Vec<u8>,
-) -> Option<ExtensionMap> {
+) -> Result<ExtensionMap, NfdumpError> {
     let mut cursor = std::io::Cursor::new(&record_data);
 
-    let map_id = cursor.read_u16::<LittleEndian>().ok().unwrap();
-    let extension_size = cursor.read_u16::<LittleEndian>().ok().unwrap();
+    let map_id = cursor.read_u16::<LittleEndian>()?;
+    let extension_size = cursor.read_u16::<LittleEndian>()?;
 
     let mut ex_id: Vec<u16> = Vec::new();
 
-    while let Some(id) = cursor.read_u16::<LittleEndian>().ok() {
+    while let Ok(id) = cursor.read_u16::<LittleEndian>() {
         if id == 0 {
             continue;
         }
         ex_id.push(id);
     }
 
-    Some(ExtensionMap {
+    Ok(ExtensionMap {
         header,
         map_id,
         extension_size,

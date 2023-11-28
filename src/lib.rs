@@ -134,17 +134,17 @@ impl<R: Read> NfFileReader<R> {
             Ok(()) => {
                 if header.rtype == 9 {
                     // TODO: The result of this function is 100% ignored
-                    read_samplerv0_record(header, record_data);
+                    read_samplerv0_record(header, record_data)?;
                 } else if header.rtype == 7 {
-                    let exporter = read_exporter_record(header, record_data).unwrap();
+                    let exporter = read_exporter_record(header, record_data)?;
                     self.exporters.push(exporter.clone());
                 } else if header.rtype == 2 {
                     // TODO: This assumes there will only ever be one extension map per file.
-                    let extension_map = read_extension_map(header, record_data).unwrap();
+                    let extension_map = read_extension_map(header, record_data)?;
                     self.extensions = extension_map.ex_id.clone();
                 } else if header.rtype == 8 {
                     // TODO: The result of this function is 100% ignored
-                    read_exporter_stats_record(header, record_data);
+                    read_exporter_stats_record(header, record_data)?;
                 } else {
                     return new_record(header, record_data, &(self.extensions));
                 }
