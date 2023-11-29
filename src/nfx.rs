@@ -22,11 +22,9 @@ pub fn read_extension_map(
     let mut ex_id: Vec<u16> = Vec::new();
 
     while let Ok(id) = cursor.read_u16::<LittleEndian>() {
-        if id == 0 {
-            continue;
-        }
-        ex_id.push(id);
+        ex_id.extend_from_slice(&[id]);
     }
+    ex_id.retain(|&id| id != 0);
 
     Ok(ExtensionMap {
         header,

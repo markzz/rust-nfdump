@@ -1,66 +1,38 @@
+mod block;
 pub mod error;
 mod exporter;
+mod nffilev1;
+mod nffilev2;
 mod nfx;
 pub mod record;
 
+use crate::block::DataBlockHeader;
 use crate::error::NfdumpError;
+use crate::error::NfdumpErrorKind::{UnsupportedVersion, EOF, InvalidFile};
 use crate::exporter::{
     read_exporter_record, read_exporter_stats_record, read_samplerv0_record, ExporterInfo,
 };
+use crate::nffilev1::{NfFileHeaderV1, StatRecordV1};
+use crate::nffilev2::{NfFileHeaderV2, StatRecordV2};
 use crate::nfx::read_extension_map;
 use crate::record::{new_record, Record};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Read;
-use crate::error::NfdumpErrorKind::EOF;
 
-const NFFILE_HEADER_SIZE: usize = 140;
-const NFFILE_STAT_RECORD_SIZE: usize = 136;
+const NFFILE_V1_HEADER_SIZE: usize = 140;
+const NFFILE_V2_HEADER_SIZE: usize = 40;
+const NFFILE_V1_STAT_RECORD_SIZE: usize = 136;
+const NFFILE_V2_STAT_RECORD_SIZE: usize = 144;
 const NFFILE_DATA_HEADER_SIZE: usize = 12;
 
-pub struct NfFileHeader {
-    pub magic: u16,
-    pub version: u16,
-    pub flags: u32,
-    pub num_blocks: u32,
-    pub ident: [u8; 128],
+pub enum NfFileHeader {
+    V1(NfFileHeaderV1),
+    V2(NfFileHeaderV2),
 }
 
-pub struct StatRecord {
-    pub flows: u64,
-    pub bytes: u64,
-    pub packets: u64,
-
-    pub flows_tcp: u64,
-    pub flows_udp: u64,
-    pub flows_icmp: u64,
-    pub flows_other: u64,
-
-    pub bytes_tcp: u64,
-    pub bytes_udp: u64,
-    pub bytes_icmp: u64,
-    pub bytes_other: u64,
-
-    pub packets_tcp: u64,
-    pub packets_udp: u64,
-    pub packets_icmp: u64,
-    pub packets_other: u64,
-
-    pub first_seen: u32,
-    pub last_seen: u32,
-    pub msec_first: u16,
-    pub msec_last: u16,
-
-    pub sequence_failure: u32,
-}
-
-#[allow(dead_code)]
-struct DataBlockHeader {
-    num_records: u32,
-    size: u32,
-    id: u16,
-    flags: u16,
-    record_num: u32,
-    block_num: u32,
+pub enum StatRecord {
+    V1(StatRecordV1),
+    V2(StatRecordV2),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -80,8 +52,57 @@ pub struct NfFileReader<R> {
 
 impl<R: Read> NfFileReader<R> {
     pub fn new(mut reader: R) -> Result<NfFileReader<R>, NfdumpError> {
-        let header = NfFileReader::read_header(&mut reader)?;
-        let stat_record = NfFileReader::read_stat_record(&mut reader)?;
+        let mut buf: Vec<u8> = vec![0; 2];
+        let magic = match reader.read_exact(&mut buf) {
+            Ok(_) => ((buf[1] as u16) << 8) + (buf[0]) as u16,
+            Err(e) => return Err(NfdumpError::from(e)),
+        };
+
+        if magic != 0xa50c {
+            return Err(NfdumpError::new(InvalidFile));
+        }
+
+        let version = match reader.read_exact(&mut buf) {
+            Ok(_) => ((buf[1] as u16) << 8) + (buf[0] as u16),
+            Err(e) => return Err(NfdumpError::from(e)),
+        };
+
+        let header = match version {
+            0x0001 => {
+                let mut hbuf = vec![0; NFFILE_V1_HEADER_SIZE - 4];
+                match reader.read_exact(&mut hbuf) {
+                    Ok(_) => NfFileHeader::V1(NfFileHeaderV1::from(hbuf)),
+                    Err(e) => return Err(NfdumpError::from(e)),
+                }
+            },
+            0x0002 => {
+                let mut hbuf = vec![0; NFFILE_V2_HEADER_SIZE - 4];
+                match reader.read_exact(&mut hbuf) {
+                    Ok(_) => NfFileHeader::V2(NfFileHeaderV2::from(hbuf)),
+                    Err(e) => return Err(NfdumpError::from(e)),
+                }
+            },
+            _ => return Err(NfdumpError::new(UnsupportedVersion)),
+        };
+
+        let stat_record = match version {
+            0x0001 => {
+                let mut srbuf = vec![0; NFFILE_V1_STAT_RECORD_SIZE];
+                match reader.read_exact(&mut srbuf) {
+                    Ok(_) => StatRecord::V1(StatRecordV1::from(srbuf)),
+                    Err(e) => return Err(NfdumpError::from(e)),
+                }
+            },
+            0x0002 => {
+                let mut srbuf = vec![0; NFFILE_V2_STAT_RECORD_SIZE];
+                match reader.read_exact(&mut srbuf) {
+                    Ok(_) => StatRecord::V2(StatRecordV2::from(srbuf)),
+                    Err(e) => return Err(NfdumpError::from(e)),
+                }
+            },
+            _ => return Err(NfdumpError::new(UnsupportedVersion)),
+        };
+
         let data_block = DataBlockHeader {
             num_records: 0,
             size: 0,
@@ -158,7 +179,12 @@ impl<R: Read> NfFileReader<R> {
         let mut block_data = [0; NFFILE_DATA_HEADER_SIZE];
         let result = self.reader.read_exact(&mut block_data);
 
-        if self.data_block.block_num == self.header.num_blocks {
+        let num_blocks = match &self.header {
+            NfFileHeader::V1(h) => h.num_blocks,
+            NfFileHeader::V2(h) => h.num_blocks,
+        };
+
+        if self.data_block.block_num == num_blocks {
             return Err(NfdumpError::new(EOF));
         }
 
@@ -173,75 +199,6 @@ impl<R: Read> NfFileReader<R> {
                     flags: cursor.read_u16::<LittleEndian>()?,
                     record_num: 0,
                     block_num: self.data_block.block_num + 1,
-                })
-            },
-            Err(e) => Err(NfdumpError::from(e)),
-        }
-    }
-
-    fn read_header(mut reader: R) -> Result<NfFileHeader, NfdumpError> {
-        let mut header_data = [0; NFFILE_HEADER_SIZE];
-        let result = reader.read_exact(&mut header_data);
-
-        let header = match result {
-            Ok(_) => {
-                let mut cursor = std::io::Cursor::new(&header_data);
-
-                NfFileHeader {
-                    magic: cursor.read_u16::<LittleEndian>()?,
-                    version: cursor.read_u16::<LittleEndian>()?,
-                    flags: cursor.read_u32::<LittleEndian>()?,
-                    num_blocks: cursor.read_u32::<LittleEndian>()?,
-                    ident: {
-                        let mut arr: [u8; 128] = [0; 128];
-                        _ = cursor.read_exact(&mut arr);
-                        arr
-                    },
-                }
-            },
-            Err(e) => return Err(NfdumpError::from(e)),
-        };
-
-        if header.magic != 0xa50c {
-            return Err(NfdumpError::new(error::NfdumpErrorKind::InvalidFile));
-        }
-
-        if header.version != 0x0001 {
-            return Err(NfdumpError::new(error::NfdumpErrorKind::UnsupportedVersion))
-        }
-
-        Ok(header)
-    }
-
-    fn read_stat_record(mut reader: R) -> Result<StatRecord, NfdumpError> {
-        let mut stat_record_data = [0; NFFILE_STAT_RECORD_SIZE];
-        let result = reader.read_exact(&mut stat_record_data);
-
-        match result {
-            Ok(_) => {
-                let mut cursor = std::io::Cursor::new(&stat_record_data);
-
-                Ok(StatRecord {
-                    flows: cursor.read_u64::<LittleEndian>()?,
-                    bytes: cursor.read_u64::<LittleEndian>()?,
-                    packets: cursor.read_u64::<LittleEndian>()?,
-                    flows_tcp: cursor.read_u64::<LittleEndian>()?,
-                    flows_udp: cursor.read_u64::<LittleEndian>()?,
-                    flows_icmp: cursor.read_u64::<LittleEndian>()?,
-                    flows_other: cursor.read_u64::<LittleEndian>()?,
-                    bytes_tcp: cursor.read_u64::<LittleEndian>()?,
-                    bytes_udp: cursor.read_u64::<LittleEndian>()?,
-                    bytes_icmp: cursor.read_u64::<LittleEndian>()?,
-                    bytes_other: cursor.read_u64::<LittleEndian>()?,
-                    packets_tcp: cursor.read_u64::<LittleEndian>()?,
-                    packets_udp: cursor.read_u64::<LittleEndian>()?,
-                    packets_icmp: cursor.read_u64::<LittleEndian>()?,
-                    packets_other: cursor.read_u64::<LittleEndian>()?,
-                    first_seen: cursor.read_u32::<LittleEndian>()?,
-                    last_seen: cursor.read_u32::<LittleEndian>()?,
-                    msec_first: cursor.read_u16::<LittleEndian>()?,
-                    msec_last: cursor.read_u16::<LittleEndian>()?,
-                    sequence_failure: cursor.read_u32::<LittleEndian>()?,
                 })
             }
             Err(e) => Err(NfdumpError::from(e)),
