@@ -8,26 +8,18 @@ const NFDUMP_COMPRESSION_TYPE_BZ2: u8 = 2;
 
 const BUFSIZE: usize = 5 * 1048576;
 
-// Define the Decompressor enum
 pub enum Decompressor {
     Lz4(Lz4Decompressor),
     Bz2(Bz2Decompressor),
     Plain(PlainDecompressor),
 }
 
-// Implement the Decompress trait for each enum variant
 impl Decompressor {
     pub(crate) fn new(dtype: u8, data: Vec<u8>) -> Result<Self, Error> {
-        // Match on the compression type and create the appropriate variant
-        // You might need to modify this logic based on your specific requirements
         let decompressor = match dtype {
-            // Example: 1 represents Lz4 compression
             NFDUMP_COMPRESSION_TYPE_LZ4 => Decompressor::Lz4(Lz4Decompressor::new(data)?),
-            // Example: 2 represents Bz2 compression
             NFDUMP_COMPRESSION_TYPE_BZ2 => Decompressor::Bz2(Bz2Decompressor::new(data)?),
-            // Example: 3 represents Plain compression
             NFDUMP_COMPRESSION_TYPE_PLAIN => Decompressor::Plain(PlainDecompressor::new(data)?),
-            // Handle other compression types or return an error
             _ => return Err(Error::new(io::ErrorKind::InvalidData, "Unsupported compression")),
         };
 
@@ -35,10 +27,8 @@ impl Decompressor {
     }
 }
 
-// Implement the Read trait for Decompressor
 impl Read for Decompressor {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        // Match on the enum variant and call the appropriate read method
         match self {
             Decompressor::Lz4(d) => d.read(buf),
             Decompressor::Bz2(d) => d.read(buf),
@@ -47,7 +37,6 @@ impl Read for Decompressor {
     }
 }
 
-// Example implementations of Lz4Decompressor, Bz2Decompressor, PlainDecompressor
 pub struct Lz4Decompressor {
     pub(crate) d: Cursor<Vec<u8>>,
 }
@@ -73,7 +62,6 @@ impl Lz4Decompressor {
     }
 }
 
-// Implement the Read trait for Lz4Decompressor
 impl Read for Lz4Decompressor {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         self.d.read(buf)
