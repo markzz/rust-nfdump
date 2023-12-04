@@ -9,6 +9,7 @@ pub struct NfFileHeaderV1 {
     pub ident: [u8; 128],
 }
 
+#[derive(Default, Debug)]
 pub struct StatRecordV1 {
     pub flows: u64,
     pub bytes: u64,

@@ -1,8 +1,31 @@
 use std::io::{Cursor, Error};
 use crate::error::NfdumpError;
-use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use crate::exporter::{ExporterInfo, SamplerV0Record};
+use crate::nffilev2::StatRecordV2;
+use crate::nfx::ExtensionMap;
+use crate::nfx_v3::RecordV3;
+
+
+#[derive(Debug)]
+pub enum RecordKind {
+    ExtensionMap(ExtensionMap),
+    ExporterInfo(ExporterInfo),
+    SamplerV0(SamplerV0Record),
+    Record(Record),
+    RecordV3(RecordV3),
+    Ident(Vec<u8>),
+    Stat(StatRecordV2),
+    Unimplemented,
+    None,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct NfFileRecordHeader {
+    pub rtype: u16,
+    pub size: u16,
+}
 
 #[derive(Debug)]
 pub struct Record {

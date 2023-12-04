@@ -1,8 +1,8 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
 use crate::error::NfdumpError;
 use crate::error::NfdumpErrorKind::UnexpectedSAInExporter;
+use crate::record::NfFileRecordHeader;
 
 const AF_INET: u16 = 2;
 const AF_INET6: u16 = 10;
@@ -13,7 +13,7 @@ pub struct ExporterInfo {
     pub address: IpAddr,
     pub sa_family: u16,
     pub sysid: u16,
-    pub id: u16,
+    pub id: u32,
 }
 
 #[derive(Debug)]
@@ -50,7 +50,7 @@ pub fn read_exporter_record(
     let addr = cursor.read_u128::<LittleEndian>()?;
     let sa_family = cursor.read_u16::<LittleEndian>()?;
     let sysid = cursor.read_u16::<LittleEndian>()?;
-    let id = cursor.read_u16::<LittleEndian>()?;
+    let id = cursor.read_u32::<LittleEndian>()?;
 
     Ok(ExporterInfo {
         header,
@@ -85,6 +85,8 @@ pub fn read_samplerv0_record(
     })
 }
 
+// dead temporarily until implemented again
+#[allow(dead_code)]
 pub fn read_exporter_stats_record(
     header: NfFileRecordHeader,
     record_data: Vec<u8>,

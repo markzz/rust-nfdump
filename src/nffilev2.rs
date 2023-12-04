@@ -12,8 +12,10 @@ pub struct NfFileHeaderV2 {
     pub off_appendix: u64,
     pub block_size: u32,
     pub num_blocks: u32,
+    pub ident: Vec<u8>,
 }
 
+#[derive(Default, Debug)]
 pub struct StatRecordV2 {
     pub flows: u64,
     pub bytes: u64,
@@ -41,7 +43,7 @@ impl From<Vec<u8>> for NfFileHeaderV2 {
 
         NfFileHeaderV2 {
             magic: 0xa50c,
-            version: 0x0001,
+            version: 0x0002,
             nf_version: cursor.read_u32::<LittleEndian>().unwrap(),
             created: cursor.read_u64::<LittleEndian>().unwrap(),
             compression: cursor.read_u8().unwrap(),
@@ -51,6 +53,7 @@ impl From<Vec<u8>> for NfFileHeaderV2 {
             off_appendix: cursor.read_u64::<LittleEndian>().unwrap(),
             block_size: cursor.read_u32::<LittleEndian>().unwrap(),
             num_blocks: cursor.read_u32::<LittleEndian>().unwrap(),
+            ident: Vec::new(),
         }
     }
 }

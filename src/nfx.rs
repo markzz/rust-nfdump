@@ -1,6 +1,6 @@
-use crate::NfFileRecordHeader;
 use byteorder::{LittleEndian, ReadBytesExt};
 use crate::error::NfdumpError;
+use crate::record::NfFileRecordHeader;
 
 #[derive(Debug)]
 pub struct ExtensionMap {
