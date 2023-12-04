@@ -188,7 +188,7 @@ impl RecordV3 {
             let ext = cursor.read_u16::<LittleEndian>()?;
 
             // Skip record size, it's rather redundant
-            _ = cursor.read_u16::<LittleEndian>()?;
+            let size = cursor.read_u16::<LittleEndian>()?;
 
             match ext {
                 EXT_GENERIC_FLOW => {
@@ -300,7 +300,9 @@ impl RecordV3 {
                     record.in_payload = Some(payload);
                 }
                 _ => {
-                    // skip for now
+                    // Skip unimplemented extensions
+                    let mut buf = vec![0; size as usize - 4];
+                    cursor.read_exact(&mut buf)?;
                 }
             }
         }
