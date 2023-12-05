@@ -1,16 +1,11 @@
-use crate::error::NfdumpErrorKind::IoError;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Display, Formatter};
+use std::error::Error;
+use std::io;
 
 #[derive(Debug)]
-pub struct NfdumpError {
-    pub kind: NfdumpErrorKind,
-    pub(crate) io_error: Option<std::io::Error>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum NfdumpErrorKind {
+pub enum NfdumpError {
     EOF,
-    IoError,
+    IoError(io::Error),
     InvalidFile,
     UnexpectedSAInExporter,
     ParseError,
@@ -21,52 +16,23 @@ pub enum NfdumpErrorKind {
 
 impl Display for NfdumpError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
-            NfdumpErrorKind::EOF => {
-                write!(f, "{}", "no more records to read (end of file)")
-            }
-            NfdumpErrorKind::UnexpectedSAInExporter => {
-                write!(f, "{}", "unexpected sa value in exporter record")
-            }
-            NfdumpErrorKind::ParseError => {
-                write!(f, "{}", "parser error")
-            }
-            IoError => match self.io_error {
-                Some(ref e) => write!(f, "{}", e),
-                _ => Ok(()),
-            },
-            NfdumpErrorKind::InvalidFile => {
-                write!(f, "{}", "")
-            }
-            NfdumpErrorKind::UnsupportedVersion => {
-                write!(f, "{}", "nfdump file version not supported (yet)")
-            }
-            NfdumpErrorKind::UnsupportedCompression => {
-                write!(f, "{}", "nfdump file compression not supported")
-            }
-            NfdumpErrorKind::UnexpectedExtension => {
-                write!(f, "{}", "unexpected extension")
-            }
+        match self {
+            NfdumpError::EOF => write!(f, "no more records to read (end of file)"),
+            NfdumpError::IoError(e) => write!(f, "IO error: {}", e),
+            NfdumpError::InvalidFile => write!(f, "invalid file"),
+            NfdumpError::UnexpectedSAInExporter => write!(f, "unexpected sa value in exporter record"),
+            NfdumpError::ParseError => write!(f, "parser error"),
+            NfdumpError::UnsupportedVersion => write!(f, "nfdump file version not supported (yet)"),
+            NfdumpError::UnsupportedCompression => write!(f, "nfdump file compression not supported"),
+            NfdumpError::UnexpectedExtension => write!(f, "unexpected extension"),
         }
     }
 }
 
-impl std::error::Error for NfdumpError {}
+impl Error for NfdumpError {}
 
-impl From<std::io::Error> for NfdumpError {
-    fn from(value: std::io::Error) -> Self {
-        let io_error = Option::from(value);
-        let kind = IoError;
-
-        NfdumpError { kind, io_error }
-    }
-}
-
-impl NfdumpError {
-    pub(crate) fn new(kind: NfdumpErrorKind) -> Self {
-        NfdumpError {
-            kind,
-            io_error: None,
-        }
+impl From<io::Error> for NfdumpError {
+    fn from(error: io::Error) -> Self {
+        NfdumpError::IoError(error)
     }
 }

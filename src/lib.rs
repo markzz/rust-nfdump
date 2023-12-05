@@ -11,7 +11,6 @@ mod nfx_v3;
 use crate::block::{DataBlock, DataBlockHeader};
 use crate::compress::Decompressor;
 use crate::error::NfdumpError;
-use crate::error::NfdumpErrorKind::{InvalidFile, UnsupportedCompression, UnsupportedVersion, EOF};
 use crate::exporter::ExporterInfo;
 use crate::nffilev1::{NfFileHeaderV1, StatRecordV1};
 use crate::nffilev2::{NfFileHeaderV2, StatRecordV2};
@@ -50,7 +49,7 @@ impl<R: Read + Seek> NfFileReader<R> {
     pub fn new(mut reader: R) -> Result<Self, NfdumpError> {
         let magic = reader.read_u16::<LittleEndian>()?;
         if magic != 0xa50c {
-            return Err(NfdumpError::new(InvalidFile));
+            return Err(NfdumpError::InvalidFile);
         }
 
         let version = reader.read_u16::<LittleEndian>()?;
@@ -65,7 +64,7 @@ impl<R: Read + Seek> NfFileReader<R> {
                 reader.read_exact(&mut hbuf)?;
                 NfFileHeader::V2(NfFileHeaderV2::from(hbuf))
             }
-            _ => return Err(NfdumpError::new(UnsupportedVersion)),
+            _ => return Err(NfdumpError::UnsupportedVersion),
         };
 
         let stat_record = match version {
@@ -80,7 +79,7 @@ impl<R: Read + Seek> NfFileReader<R> {
                 let x: StatRecordV2 = Default::default();
                 StatRecord::V2(x)
             }
-            _ => return Err(NfdumpError::new(UnsupportedVersion)),
+            _ => return Err(NfdumpError::UnsupportedVersion),
         };
 
         let remaining_blocks = match &header {
@@ -143,13 +142,13 @@ impl<R: Read + Seek> NfFileReader<R> {
         if record.is_none() {
             self.data_block = None;
         }
-        record.ok_or(NfdumpError::new(EOF))
+        record.ok_or(NfdumpError::EOF)
     }
 
     pub fn read_record(&mut self) -> Result<RecordKind, NfdumpError> {
         if let NfFileHeader::V2(h) = &self.header {
             if self.reader.seek(SeekFrom::Current(0)).unwrap() >= h.off_appendix {
-                return Err(NfdumpError::new(EOF));
+                return Err(NfdumpError::EOF);
             }
         }
         while let Ok(r) = self._read_record() {
@@ -161,11 +160,11 @@ impl<R: Read + Seek> NfFileReader<R> {
                     self.read_data_block()?;
                     continue;
                 }
-                RecordKind::None => return Err(NfdumpError::new(EOF)),
+                RecordKind::None => return Err(NfdumpError::EOF),
                 _ => continue,
             }
         }
-        Err(NfdumpError::new(EOF))
+        Err(NfdumpError::EOF)
     }
 
     fn read_data_block(&mut self) -> Result<(), NfdumpError> {
@@ -203,7 +202,7 @@ impl<R: Read + Seek> NfFileReader<R> {
         match header {
             NfFileHeader::V1(h) => {
                 if h.flags & 0x01 == 0x01 {
-                    return Err(NfdumpError::new(UnsupportedCompression));
+                    return Err(NfdumpError::UnsupportedCompression);
                 }
 
                 let decompressor: Box<Decompressor> = match h.flags & 0x18 {
@@ -216,10 +215,10 @@ impl<R: Read + Seek> NfFileReader<R> {
             }
             NfFileHeader::V2(h) => match h.compression {
                 0 => Ok(Box::new(Decompressor::new(3, data)?)),
-                1 => Err(NfdumpError::new(UnsupportedCompression)),
+                1 => Err(NfdumpError::UnsupportedCompression),
                 2 => Ok(Box::new(Decompressor::new(2, data)?)),
                 3 => Ok(Box::new(Decompressor::new(1, data)?)),
-                _ => Err(NfdumpError::new(UnsupportedCompression)),
+                _ => Err(NfdumpError::UnsupportedCompression),
             },
         }
     }

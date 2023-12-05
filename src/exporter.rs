@@ -1,7 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use byteorder::{LittleEndian, ReadBytesExt};
 use crate::error::NfdumpError;
-use crate::error::NfdumpErrorKind::UnexpectedSAInExporter;
 use crate::record::NfFileRecordHeader;
 
 const AF_INET: u16 = 2;
@@ -61,7 +60,7 @@ pub fn read_exporter_record(
             } else if sa_family == AF_INET6 {
                 IpAddr::from(Ipv6Addr::from(addr))
             } else {
-                return Err(NfdumpError::new(UnexpectedSAInExporter));
+                return Err(NfdumpError::UnexpectedSAInExporter);
             }
         },
         sa_family,
