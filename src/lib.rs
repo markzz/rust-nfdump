@@ -9,7 +9,7 @@ pub mod record;
 mod nfx_v3;
 
 use crate::block::{DataBlock, DataBlockHeader};
-use crate::compress::Decompressor;
+use crate::compress::{Decompressor, NFDUMP_COMPRESSION_TYPE_BZ2, NFDUMP_COMPRESSION_TYPE_LZ4, NFDUMP_COMPRESSION_TYPE_LZO, NFDUMP_COMPRESSION_TYPE_PLAIN};
 use crate::error::NfdumpError;
 use crate::exporter::ExporterInfo;
 use crate::nffilev1::{NfFileHeaderV1, StatRecordV1};
@@ -215,10 +215,10 @@ impl<R: Read + Seek> NfFileReader<R> {
                 Ok(decompressor)
             }
             NfFileHeader::V2(h) => match h.compression {
-                0 => Ok(Box::new(Decompressor::new(3, data)?)),
-                1 => Err(NfdumpError::UnsupportedCompression),
-                2 => Ok(Box::new(Decompressor::new(2, data)?)),
-                3 => Ok(Box::new(Decompressor::new(1, data)?)),
+                0 => Ok(Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_PLAIN, data)?)),
+                1 => Ok(Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_LZO, data)?)),
+                2 => Ok(Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_BZ2, data)?)),
+                3 => Ok(Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_LZ4, data)?)),
                 _ => Err(NfdumpError::UnsupportedCompression),
             },
         }

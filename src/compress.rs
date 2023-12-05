@@ -1,14 +1,15 @@
 use std::io::{self, Cursor, Error, ErrorKind, Read};
 use bzip2::read::BzDecoder;
 
-const NFDUMP_COMPRESSION_TYPE_PLAIN: u8 = 3;
-const NFDUMP_COMPRESSION_TYPE_LZ4: u8 = 1;
-const NFDUMP_COMPRESSION_TYPE_BZ2: u8 = 2;
-//const NFDUMP_COMPRESSION_TYPE_LZO: u8 = 0;
+pub(crate) const NFDUMP_COMPRESSION_TYPE_PLAIN: u8 = 0;
+pub(crate) const NFDUMP_COMPRESSION_TYPE_LZO: u8 = 1;
+pub(crate) const NFDUMP_COMPRESSION_TYPE_BZ2: u8 = 2;
+pub(crate) const NFDUMP_COMPRESSION_TYPE_LZ4: u8 = 3;
 
 const BUFSIZE: usize = 5 * 1048576;
 
 pub enum Decompressor {
+    Lzo(LzoDecompressor),
     Lz4(Lz4Decompressor),
     Bz2(Bz2Decompressor),
     Plain(PlainDecompressor),
@@ -17,6 +18,7 @@ pub enum Decompressor {
 impl Decompressor {
     pub(crate) fn new(dtype: u8, data: Vec<u8>) -> Result<Self, Error> {
         let decompressor = match dtype {
+            NFDUMP_COMPRESSION_TYPE_LZO => Decompressor::Lzo(LzoDecompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_LZ4 => Decompressor::Lz4(Lz4Decompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_BZ2 => Decompressor::Bz2(Bz2Decompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_PLAIN => Decompressor::Plain(PlainDecompressor::new(data)?),
@@ -33,7 +35,26 @@ impl Read for Decompressor {
             Decompressor::Lz4(d) => d.read(buf),
             Decompressor::Bz2(d) => d.read(buf),
             Decompressor::Plain(d) => d.read(buf),
+            Decompressor::Lzo(d) => d.read(buf),
         }
+    }
+}
+
+pub struct LzoDecompressor {
+    pub(crate) d: Cursor<Vec<u8>>,
+}
+
+impl LzoDecompressor {
+    fn new(data: Vec<u8>) -> Result<Self, Error> {
+        let decompressed = minilzo::decompress(data.as_slice(), BUFSIZE).unwrap();
+        let d = Cursor::new(decompressed);
+        Ok(LzoDecompressor { d })
+    }
+}
+
+impl Read for LzoDecompressor {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        self.d.read(buf)
     }
 }
 
