@@ -130,6 +130,7 @@ impl<R: Read + Seek> NfFileReader<R> {
             }
             self.reader.seek(SeekFrom::Start(NFFILE_V2_HEADER_SIZE as u64))?;
         }
+        self.data_block = None;
         Ok(())
     }
 
