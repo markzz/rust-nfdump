@@ -47,39 +47,23 @@ pub struct NfFileReader<R> {
 }
 
 impl<R: Read + Seek> NfFileReader<R> {
-    pub fn new(mut reader: R) -> Result<Self, NfdumpError>
-    where
-        R: Read + Seek,
-    {
-        let mut buf: Vec<u8> = vec![0; 2];
-        let magic = match reader.read_exact(&mut buf) {
-            Ok(_) => ((buf[1] as u16) << 8) + (buf[0]) as u16,
-            Err(e) => return Err(NfdumpError::from(e)),
-        };
-
+    pub fn new(mut reader: R) -> Result<Self, NfdumpError> {
+        let magic = reader.read_u16::<LittleEndian>()?;
         if magic != 0xa50c {
             return Err(NfdumpError::new(InvalidFile));
         }
 
-        let version = match reader.read_exact(&mut buf) {
-            Ok(_) => ((buf[1] as u16) << 8) + (buf[0] as u16),
-            Err(e) => return Err(NfdumpError::from(e)),
-        };
-
+        let version = reader.read_u16::<LittleEndian>()?;
         let header = match version {
             0x0001 => {
                 let mut hbuf = vec![0; NFFILE_V1_HEADER_SIZE - 4];
-                match reader.read_exact(&mut hbuf) {
-                    Ok(_) => NfFileHeader::V1(NfFileHeaderV1::from(hbuf)),
-                    Err(e) => return Err(NfdumpError::from(e)),
-                }
+                reader.read_exact(&mut hbuf)?;
+                NfFileHeader::V1(NfFileHeaderV1::from(hbuf))
             }
             0x0002 => {
                 let mut hbuf = vec![0; NFFILE_V2_HEADER_SIZE - 4];
-                match reader.read_exact(&mut hbuf) {
-                    Ok(_) => NfFileHeader::V2(NfFileHeaderV2::from(hbuf)),
-                    Err(e) => return Err(NfdumpError::from(e)),
-                }
+                reader.read_exact(&mut hbuf)?;
+                NfFileHeader::V2(NfFileHeaderV2::from(hbuf))
             }
             _ => return Err(NfdumpError::new(UnsupportedVersion)),
         };
@@ -128,33 +112,25 @@ impl<R: Read + Seek> NfFileReader<R> {
 
     fn read_appendix(&mut self) -> Result<(), NfdumpError> {
         if let NfFileHeader::V2(header) = &self.header {
-            _ = self.reader.seek(SeekFrom::Start(header.off_appendix));
+            self.reader.seek(SeekFrom::Start(header.off_appendix))?;
             for _ in 0..header.appendix_blocks {
-                match self.read_data_block() {
-                    Ok(_) => {
-                        while let Some(r) = self.data_block.as_mut().unwrap().read_record(&self.extensions) {
-                            match r {
-                                RecordKind::Ident(i) => {
-                                    if let NfFileHeader::V2(header) = &mut self.header {
-                                        header.ident = i;
-                                    }
-                                }
-                                RecordKind::Stat(s) => {
-                                    self.stat_record = StatRecord::V2(s);
-                                }
-                                _ => {}
+                self.read_data_block()?;
+                while let Some(r) = self.data_block.as_mut().unwrap().read_record(&self.extensions) {
+                    match r {
+                        RecordKind::Ident(i) => {
+                            if let NfFileHeader::V2(header) = &mut self.header {
+                                header.ident = i;
                             }
                         }
+                        RecordKind::Stat(s) => {
+                            self.stat_record = StatRecord::V2(s);
+                        }
+                        _ => {}
                     }
-                    Err(e) => return Err(e),
                 }
             }
-
-            _ = self
-                .reader
-                .seek(SeekFrom::Start(NFFILE_V2_HEADER_SIZE as u64));
+            self.reader.seek(SeekFrom::Start(NFFILE_V2_HEADER_SIZE as u64))?;
         }
-
         Ok(())
     }
 
@@ -163,13 +139,11 @@ impl<R: Read + Seek> NfFileReader<R> {
             self.read_data_block()?;
         }
 
-        match self.data_block.as_mut().unwrap().read_record(&self.extensions) {
-            None => {
-                self.data_block = None;
-                Ok(RecordKind::None)
-            }
-            Some(r) => Ok(r),
+        let record = self.data_block.as_mut().unwrap().read_record(&self.extensions);
+        if record.is_none() {
+            self.data_block = None;
         }
+        record.ok_or(NfdumpError::new(EOF))
     }
 
     pub fn read_record(&mut self) -> Result<RecordKind, NfdumpError> {
@@ -178,32 +152,20 @@ impl<R: Read + Seek> NfFileReader<R> {
                 return Err(NfdumpError::new(EOF));
             }
         }
-        loop {
-            match self._read_record() {
-                Ok(r) => match r {
-                    RecordKind::ExtensionMap(e) => {
-                        self.extensions = e.ex_id.clone();
-                        continue;
-                    }
-                    RecordKind::ExporterInfo(e) => {
-                        self.exporters.push(e.clone());
-                        continue;
-                    }
-                    RecordKind::Record(_) => return Ok(r),
-                    RecordKind::RecordV3(_) => return Ok(r),
-                    RecordKind::None => {
-                        return if self.remaining_blocks > 0 {
-                            self.read_data_block()?;
-                            self.read_record()
-                        } else {
-                            Err(NfdumpError::new(EOF))
-                        }
-                    },
-                    _ => continue,
-                },
-                Err(e) => return Err(e),
-            };
+        while let Ok(r) = self._read_record() {
+            match r {
+                RecordKind::ExtensionMap(e) => self.extensions = e.ex_id.clone(),
+                RecordKind::ExporterInfo(e) => self.exporters.push(e.clone()),
+                RecordKind::Record(_) | RecordKind::RecordV3(_) => return Ok(r),
+                RecordKind::None if self.remaining_blocks > 0 => {
+                    self.read_data_block()?;
+                    continue;
+                }
+                RecordKind::None => return Err(NfdumpError::new(EOF)),
+                _ => continue,
+            }
         }
+        Err(NfdumpError::new(EOF))
     }
 
     fn read_data_block(&mut self) -> Result<(), NfdumpError> {
