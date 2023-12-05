@@ -92,32 +92,3 @@ impl DataBlock {
         Some(self._read_record_kind(&record_header, ext))
     }
 }
-
-// impl<D: Read> DataBlock<D> {
-//     pub fn new(mut reader: D) -> DataBlock<D> {
-//         let mut block_data = [0; NFFILE_DATA_HEADER_SIZE];
-//         let header = match reader.read_exact(&mut block_data) {
-//             Ok(_) => {
-//                 let mut cursor = std::io::Cursor::new(block_data);
-//                 Some(DataBlockHeader {
-//                     num_records: cursor.read_u32::<LittleEndian>().unwrap(),
-//                     size: cursor.read_u32::<LittleEndian>().unwrap(),
-//                     id: cursor.read_u16::<LittleEndian>().unwrap(),
-//                     flags: cursor.read_u16::<LittleEndian>().unwrap(),
-//                 })
-//             },
-//             Err(e) => None,
-//         }.unwrap();
-//
-//         let dec = lz4::Decoder::new(reader);
-//
-//         DataBlock {
-//             decoder: dec,
-//             header,
-//         }
-//     }
-//
-//     pub(crate) fn read_record(&mut self) -> Record {
-//
-//     }
-// }
