@@ -1,10 +1,12 @@
-use std::io::{self, Cursor, Error, ErrorKind, Read};
+use std::io::{self, BufReader, Cursor, Error, ErrorKind, Read};
 use bzip2::read::BzDecoder;
+use zstd::Decoder as ZstdDecoder;
 
 pub(crate) const NFDUMP_COMPRESSION_TYPE_PLAIN: u8 = 0;
 pub(crate) const NFDUMP_COMPRESSION_TYPE_LZO: u8 = 1;
 pub(crate) const NFDUMP_COMPRESSION_TYPE_BZ2: u8 = 2;
 pub(crate) const NFDUMP_COMPRESSION_TYPE_LZ4: u8 = 3;
+pub(crate) const NFDUMP_COMPRESSION_TYPE_ZSTD: u8 = 4;
 
 const BUFSIZE: usize = 5 * 1048576;
 
@@ -12,6 +14,7 @@ pub enum Decompressor {
     Lzo(LzoDecompressor),
     Lz4(Lz4Decompressor),
     Bz2(Bz2Decompressor),
+    Zstd(ZstdDecompressor<'static>),
     Plain(PlainDecompressor),
 }
 
@@ -21,6 +24,7 @@ impl Decompressor {
             NFDUMP_COMPRESSION_TYPE_LZO => Decompressor::Lzo(LzoDecompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_LZ4 => Decompressor::Lz4(Lz4Decompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_BZ2 => Decompressor::Bz2(Bz2Decompressor::new(data)?),
+            NFDUMP_COMPRESSION_TYPE_ZSTD => Decompressor::Zstd(ZstdDecompressor::new(data)?),
             NFDUMP_COMPRESSION_TYPE_PLAIN => Decompressor::Plain(PlainDecompressor::new(data)?),
             _ => return Err(Error::new(io::ErrorKind::InvalidData, "Unsupported compression")),
         };
@@ -36,7 +40,26 @@ impl Read for Decompressor {
             Decompressor::Bz2(d) => d.read(buf),
             Decompressor::Plain(d) => d.read(buf),
             Decompressor::Lzo(d) => d.read(buf),
+            Decompressor::Zstd(d) => d.read(buf),
         }
+    }
+}
+
+pub struct ZstdDecompressor<'a> {
+    pub(crate) d: Box<ZstdDecoder<'a, BufReader<Cursor<Vec<u8>>>>>,
+}
+
+impl ZstdDecompressor<'_> {
+    fn new(data: Vec<u8>) -> Result<Self, Error> {
+        let cursor = Cursor::new(data);
+        let d = ZstdDecoder::new(cursor)?;
+        Ok(ZstdDecompressor { d: Box::new(d) })
+    }
+}
+
+impl Read for ZstdDecompressor<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        self.d.read(buf)
     }
 }
 
