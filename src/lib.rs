@@ -202,15 +202,11 @@ impl<R: Read + Seek> NfFileReader<R> {
     ) -> Result<Box<Decompressor>, NfdumpError> {
         match header {
             NfFileHeader::V1(h) => {
-                if h.flags & 0x01 == 0x01 {
-                    return Err(NfdumpError::UnsupportedCompression);
-                }
-
                 let decompressor: Box<Decompressor> = match h.flags & 0x19 {
                     0x01 => Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_LZO, data)?),
                     0x08 => Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_BZ2, data)?),
                     0x10 => Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_LZ4, data)?),
-                    _ => Box::new(Decompressor::new(3, data)?),
+                    _ => Box::new(Decompressor::new(NFDUMP_COMPRESSION_TYPE_PLAIN, data)?),
                 };
 
                 Ok(decompressor)
