@@ -137,11 +137,15 @@ impl<R: Read + Seek> NfFileReader<R> {
     fn _read_record(&mut self) -> Result<RecordKind, NfdumpError> {
         if self.data_block.is_none() && self.remaining_blocks > 0 {
             self.read_data_block()?;
+            self.remaining_blocks -= 1;
+        } else if self.data_block.is_none() && self.remaining_blocks == 0 {
+            return Err(NfdumpError::EOF);
         }
 
         let record = self.data_block.as_mut().unwrap().read_record(&self.extensions);
         if record.is_none() {
             self.data_block = None;
+            return self._read_record();
         }
         record.ok_or(NfdumpError::EOF)
     }
@@ -159,6 +163,7 @@ impl<R: Read + Seek> NfFileReader<R> {
                 RecordKind::Record(_) | RecordKind::RecordV3(_) => return Ok(r),
                 RecordKind::None if self.remaining_blocks > 0 => {
                     self.read_data_block()?;
+                    self.remaining_blocks -= 1;
                     continue;
                 }
                 RecordKind::None => return Err(NfdumpError::EOF),
