@@ -27,6 +27,7 @@ pub struct NfFileRecordHeader {
     pub size: u16,
 }
 
+/// `Record` represents a flow record.
 #[derive(Debug)]
 pub struct Record {
     pub head: NfFileRecordHeader,

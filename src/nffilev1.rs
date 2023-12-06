@@ -9,6 +9,7 @@ pub struct NfFileHeaderV1 {
     pub ident: [u8; 128],
 }
 
+/// `StatRecordV1` represents a stat record.
 #[derive(Default, Debug)]
 pub struct StatRecordV1 {
     pub flows: u64,

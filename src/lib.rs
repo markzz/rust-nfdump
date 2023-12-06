@@ -35,6 +35,17 @@ pub enum StatRecord {
     V2(StatRecordV2),
 }
 
+/// `NfFileReader` reads nfdump files and provides methods to access the data.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::fs::File;
+/// use nfdump::NfFileReader;
+///
+/// let file = File::open("path_to_your_file").unwrap();
+/// let mut reader = NfFileReader::new(file).unwrap();
+/// ```
 pub struct NfFileReader<R> {
     reader: R,
     pub header: NfFileHeader,
@@ -46,6 +57,17 @@ pub struct NfFileReader<R> {
 }
 
 impl<R: Read + Seek> NfFileReader<R> {
+    /// Creates a new `NfFileReader` from a reader.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use nfdump::NfFileReader;
+    ///
+    /// let file = File::open("path_to_your_file").unwrap();
+    /// let mut reader = NfFileReader::new(file).unwrap();
+    /// ```
     pub fn new(mut reader: R) -> Result<Self, NfdumpError> {
         let magic = reader.read_u16::<LittleEndian>()?;
         if magic != 0xa50c {
@@ -102,6 +124,18 @@ impl<R: Read + Seek> NfFileReader<R> {
         Ok(ret)
     }
 
+    /// Returns the file's identification string.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use nfdump::NfFileReader;
+    ///
+    /// let file = File::open("path_to_your_file").unwrap();
+    /// let mut reader = NfFileReader::new(file).unwrap();
+    /// println!("{:?}", reader.get_ident());
+    /// ```
     pub fn get_ident(&self) -> Vec<u8> {
         match &self.header {
             NfFileHeader::V1(h) => h.ident.to_vec(),
@@ -155,6 +189,30 @@ impl<R: Read + Seek> NfFileReader<R> {
         record.ok_or(NfdumpError::EOF)
     }
 
+    /// Reads the next record from the file.
+    ///
+    /// Returns one of the following:
+    ///
+    /// * `RecordKind::Record` - A flow record typically found in a V1 file.
+    /// * `RecordKind::RecordV3` - A flow record typically found in a V2 file (V3 signifies it's from a DataBlock Type 3).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use nfdump::NfFileReader;
+    /// use nfdump::record::RecordKind;
+    ///
+    /// let file = File::open("path_to_your_file").unwrap();
+    /// let mut reader = NfFileReader::new(file).unwrap();
+    /// match reader.read_record() {
+    ///    Ok(rec) => match rec {
+    ///        RecordKind::Record(r) => println!("{:?}", r),
+    ///        RecordKind::RecordV3(r) => println!("{:?}", r),
+    ///        _ => {}},
+    ///    Err(e) => println!("{:?}", e),
+    /// }
+    /// ```
     pub fn read_record(&mut self) -> Result<RecordKind, NfdumpError> {
         while let Ok(r) = self._read_record() {
             match r {

@@ -133,6 +133,7 @@ pub type ExNselXLateIpv4 = [u32; 10];
 
 pub type ExNselXLateIpv6 = [u128; 10];
 
+/// `Record` represents a flow record.
 #[derive(Debug)]
 pub struct RecordV3 {
     pub head: RecordHeaderV3,
