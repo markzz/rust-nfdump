@@ -136,6 +136,11 @@ impl<R: Read + Seek> NfFileReader<R> {
 
     fn _read_record(&mut self) -> Result<RecordKind, NfdumpError> {
         if self.data_block.is_none() && self.remaining_blocks > 0 {
+            if let NfFileHeader::V2(h) = &self.header {
+                if self.reader.seek(SeekFrom::Current(0)).unwrap() >= h.off_appendix {
+                    return Err(NfdumpError::EOF);
+                }
+            }
             self.read_data_block()?;
             self.remaining_blocks -= 1;
         } else if self.data_block.is_none() && self.remaining_blocks == 0 {
@@ -151,11 +156,6 @@ impl<R: Read + Seek> NfFileReader<R> {
     }
 
     pub fn read_record(&mut self) -> Result<RecordKind, NfdumpError> {
-        if let NfFileHeader::V2(h) = &self.header {
-            if self.reader.seek(SeekFrom::Current(0)).unwrap() >= h.off_appendix {
-                return Err(NfdumpError::EOF);
-            }
-        }
         while let Ok(r) = self._read_record() {
             match r {
                 RecordKind::ExtensionMap(e) => self.extensions = e.ex_id.clone(),
