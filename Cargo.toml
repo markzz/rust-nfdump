@@ -14,6 +14,7 @@ authors = ["Mark King <mark.king@markzz.com>"]
 [dependencies]
 byteorder = "1.5.0"
 bzip2 = "0.4.4"
+eui48 = "1.1.0"
 lz4_flex = "0.11.1"
 minilzo = "0.2.0"
 zstd = "0.13.0"
