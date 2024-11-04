@@ -6,7 +6,7 @@ mod nffilev1;
 mod nffilev2;
 mod nfx;
 pub mod record;
-mod nfx_v3;
+pub mod nfx_v3;
 
 use crate::block::{DataBlock, DataBlockHeader};
 use crate::compress::{Decompressor, NFDUMP_COMPRESSION_TYPE_BZ2, NFDUMP_COMPRESSION_TYPE_LZ4, NFDUMP_COMPRESSION_TYPE_LZO, NFDUMP_COMPRESSION_TYPE_PLAIN, NFDUMP_COMPRESSION_TYPE_ZSTD};
