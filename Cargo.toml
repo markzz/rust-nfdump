@@ -1,6 +1,6 @@
 [package]
 name = "nfdump"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "ISC"
 description = "A Rust library for reading nfdump files"
