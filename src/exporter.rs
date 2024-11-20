@@ -24,6 +24,7 @@ pub struct SamplerV0Record {
     pub exporter_sysid: u16,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ExporterStatsRecord {
     pub header: NfFileRecordHeader,
@@ -31,6 +32,7 @@ pub struct ExporterStatsRecord {
     pub stat: Vec<ExporterStat>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ExporterStat {
     pub sysid: u32,
